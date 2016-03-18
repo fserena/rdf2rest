@@ -1,0 +1,9 @@
+.idea/
+*.pyc
+*.ttl
+*.egg-info
+dist/
+*.tar.gz
+.env/
+store/
+service/
