@@ -18,6 +18,7 @@ import json
 from threading import Thread
 
 import os
+import time
 from rdflib import RDF, URIRef
 from rdflib.namespace import Namespace
 
@@ -108,17 +109,64 @@ def create_type_partition(source_graph, dest_graph, ty, file_name=None, limit=No
                             ignore=ignore)
 
 
-def load_ttl(g, filename):
-    with open(filename) as db:
-        print 'Parsing file {}...'.format(filename),
-        g.parse(file=db, format='turtle')
-        print 'Done.'
-    print 'loaded!'
+def get_size(start_path):
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(start_path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            total_size += os.path.getsize(fp)
+    return total_size
 
 
-def load_dataset(g, filename, blocking=False):
-    loader = Thread(target=load_ttl, args=[g, filename])
+def load_dataset(g, path, filename, blocking=False):
+    def load_ttl():
+        with open(filename) as db:
+            print '\nParsing file {}...'.format(filename),
+            g.parse(file=db, format='turtle')
+            print 'Done.'
+        print "Dataset loaded from {} to '{}' path.".format(filename, path)
+        status['loading'] = False
+
+    def show_condition():
+        size = get_size(path)
+        size_changed = status['last_size'] != size
+        if size_changed:
+            status['last_size'] = size
+
+        if not status['loading']:
+            if size_changed:
+                return True
+            else:
+                if status['zero_prints']:
+                    status['zero_prints'] = False
+                    return True
+                else:
+                    return False
+        return True
+
+    def show_store_size():
+        def sizeof_fmt(num, suffix='B'):
+            for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
+                if abs(num) < 1024.0:
+                    return "%3.1f%s%s" % (num, unit, suffix)
+                num /= 1024.0
+            return "%.1f%s%s" % (num, 'Y', suffix)
+
+        while True:
+            if show_condition():
+                print "'{}' store size: {}".format(path, sizeof_fmt(float(status['last_size'])))
+            else:
+                break
+            time.sleep(5)
+
+    g.open(path, create=True)
+    loader = Thread(target=load_ttl)
+    counter = Thread(target=show_store_size)
+    counter.daemon = True
     loader.daemon = True
+    status = {'loading': True, 'zero_prints': True, 'after': False, 'last_size': get_size(path)}
     loader.start()
+    counter.start()
     if blocking:
         loader.join()
+        counter.join()

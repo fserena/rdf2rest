@@ -40,7 +40,7 @@ logger.addHandler(ch)
 logger.setLevel(log_level)
 
 from rdf2rest.api import service_graph, NAMESPACES, app, SERVICE_TYPE
-from rdf2rest.dataset import create_link_partition, create_type_partition, load_dataset
+from rdf2rest.dataset import create_link_partition, create_type_partition, load_dataset, PARTITION
 
 log = logging.getLogger('rdf2rest.r2r')
 
@@ -60,6 +60,7 @@ try:
     PARTITION_OFFSET = max(0, int(os.environ.get('PARTITION_OFFSET', 0)))
     CREATE_PARTITION = json.loads(os.environ.get('CREATE_PARTITION', 'false'))
     LOAD_SOURCE = json.loads(os.environ.get('LOAD_SOURCE', 'false'))
+    LOAD_PARTITION = json.loads(os.environ.get('LOAD_PARTITION', 'false'))
     SERVICE_VOCABULARY_URL = os.environ.get('SERVICE_VOCABULARY_URL', '')
     SERVICE_VOCABULARY_ID = os.environ.get('SERVICE_VOCABULARY_ID', '')
     IGNORE_LINKS = json.dumps(os.environ.get('IGNORE_LINKS', '[]'))
@@ -113,8 +114,13 @@ if __name__ == '__main__':
     AGORA_URL = 'http://{}:{}'.format(AGORA_HOST, AGORA_PORT)
 
     print 'Getting known vocabularies from Agora...',
-    known_vocabs = requests.get(urljoin(AGORA_URL, 'vocabs')).json()
+    try:
+        known_vocabs = requests.get(urljoin(AGORA_URL, 'vocabs')).json()
+    except Exception, e:
+        log.error(e.message)
+        sys.exit(-1)
     print 'Done.'
+
     # POST/PUT bank vocabulary
     with open(SERVICE_VOCABULARY_URL) as f:
         ttl = f.read()
@@ -144,25 +150,25 @@ if __name__ == '__main__':
     if response.status_code == 201 or response.status_code == 409:
         print 'Done.'
     else:
-        print 'Error.'
+        print 'Error: {}.'.format(response.status_code)
+
+    source_graph = ConjunctiveGraph('Sleepycat')
+
+    if LOAD_SOURCE:
+        print 'Initializing source graph...',
+        if os.path.exists(SOURCE_GRAPH_STORE):
+            shutil.rmtree(SOURCE_GRAPH_STORE)
+        print 'Done.'
+        print 'Loading source graph...',
+        load_dataset(source_graph, SOURCE_GRAPH_STORE, SOURCE_FILE, blocking=True)
+        print 'Done.'
+    else:
+        print 'Opening source graph...',
+        source_graph.open(SOURCE_GRAPH_STORE, create=True)
+        print 'Done.'
 
     if CREATE_PARTITION:
         print 'Preparing to create a dataset partition...'
-        source_graph = ConjunctiveGraph('Sleepycat')
-
-        if LOAD_SOURCE:
-            print 'Initializing source graph...',
-            if os.path.exists(SOURCE_GRAPH_STORE):
-                shutil.rmtree(SOURCE_GRAPH_STORE)
-            source_graph.open(SOURCE_GRAPH_STORE, create=True)
-            print 'Done.'
-            print 'Loading source graph...',
-            load_dataset(source_graph, SOURCE_FILE, blocking=True)
-            print 'Done.'
-        else:
-            print 'Opening source graph...',
-            source_graph.open(SOURCE_GRAPH_STORE, create=True)
-            print 'Done.'
 
         print 'Updating source graph namespaces...',
         for prefix in NAMESPACES:
@@ -179,8 +185,9 @@ if __name__ == '__main__':
         batch_thread.start()
 
     else:
-        print "Starting update of partition dataset from file {}...".format(PARTITION_FILE)
-        load_dataset(service_graph, PARTITION_FILE)
+        if LOAD_PARTITION or not list(service_graph.triples((None, None, PARTITION.Root))):
+            print "Starting update of partition dataset from file {}...".format(PARTITION_FILE)
+            load_dataset(service_graph, PARTITION_GRAPH_STORE, PARTITION_FILE)
 
-    print 'Starting REST API...'
+    print '\nStarting REST API...'
     app.run(host='0.0.0.0', debug=True, port=API_PORT, use_reloader=False, threaded=True)
