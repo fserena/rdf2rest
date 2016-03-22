@@ -13,21 +13,25 @@
   limitations under the License.
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=#
 """
-
-__author__ = 'Fernando Serena'
+import json
 
 from setuptools import setup, find_packages
 
+__author__ = 'Fernando Serena'
+
+with open("rdf2rest/metadata.json", 'r') as stream:
+    metadata = json.load(stream)
+
 setup(
     name="rdf2rest",
-    version="0.0.1",
-    author="Fernando Serena",
-    author_email="fernando.serena@centeropenmiddleware.com",
-    description="A Linked Data service generator from RDF datasets",
+    version=metadata.get('version'),
+    author=metadata.get('author'),
+    author_email=metadata.get('email'),
+    description=metadata.get('description'),
     license="Apache 2",
     keywords=["agora", "linked-data", "rdf"],
-    url="https://github.com/fserena/rdf2rest",
-    download_url="https://github.com/fserena/rdf2rest/tarball/0.0.1",
+    url=metadata.get('github'),
+    download_url="https://github.com/fserena/rdf2rest/tarball/{}".format(metadata.get('version')),
     packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
     namespace_packages=[],
     install_requires=['requests', 'rdflib', 'netifaces', 'flask'],

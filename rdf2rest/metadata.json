@@ -1,0 +1,8 @@
+{
+  "name": "rdf2rest",
+  "version": "0.0.2",
+  "author": "Fernando Serena",
+  "email": "fernando.serena@centeropenmiddleware.com",
+  "github": "https://github.com/fserena/rdf2rest.git",
+  "description": "A Linked Data service generator from RDF datasets"
+}
