@@ -63,6 +63,7 @@ try:
     SERVICE_VOCABULARY_URL = os.environ.get('SERVICE_VOCABULARY_URL', '')
     SERVICE_VOCABULARY_ID = os.environ.get('SERVICE_VOCABULARY_ID', '')
     IGNORE_LINKS = json.dumps(os.environ.get('IGNORE_LINKS', '[]'))
+    FORCE_HOST = os.environ.get('FORCE_HOST', '')
 except Exception, e:
     log.error(e.message)
     sys.exit(-1)
@@ -79,17 +80,21 @@ if CREATE_PARTITION and not TYPE_PARTITION_URI and not LINK_PARTITION_URI:
 def batch_create():
     if TYPE_PARTITION_URI:
         log.info(
-            'A partition of {} {} resources is about to be created...\n'.format(PARTITION_LIMIT, TYPE_PARTITION_URI))
+            'A partition of {} (max.) {} resources is about to be created...\n'.format(PARTITION_LIMIT,
+                                                                                       TYPE_PARTITION_URI))
         create_type_partition(source_graph, service_graph, TYPE_PARTITION_URI, limit=PARTITION_LIMIT,
                               offset=PARTITION_OFFSET, file_name=PARTITION_FILE, ignore=IGNORE_LINKS)
     elif LINK_PARTITION_URI:
-        log.info('A partition of {} resources linked by {} is about to be created...\n'.format(PARTITION_LIMIT,
-                                                                                               LINK_PARTITION_URI))
+        log.info('A partition of (max.) {} resources linked by {} is about to be created...\n'.format(PARTITION_LIMIT,
+                                                                                                      LINK_PARTITION_URI))
         create_link_partition(source_graph, service_graph, LINK_PARTITION_URI, limit=PARTITION_LIMIT,
                               offset=PARTITION_OFFSET, file_name=PARTITION_FILE, ignore=IGNORE_LINKS)
 
 
 def service_uri():
+    if FORCE_HOST:
+        return FORCE_HOST
+
     eth0 = ni.ifaddresses('eth0')
     try:
         return eth0[2][0]['addr']
