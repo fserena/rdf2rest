@@ -134,14 +134,14 @@ if __name__ == '__main__':
             if response.status_code != 201:
                 log.error(response.content)
         else:
-            log.error("Updating '{}' vocabulary...".format(SERVICE_VOCABULARY_ID))
+            log.info("Updating '{}' vocabulary...".format(SERVICE_VOCABULARY_ID))
             response = requests.put(urljoin(AGORA_URL, 'vocabs/{}'.format(SERVICE_VOCABULARY_ID)), data=ttl,
                                     headers={'Content-Type': 'text/turtle'})
             if response.status_code != 200:
                 log.error(response.content)
     prefixed_service_type = service_graph.namespace_manager.qname(SERVICE_TYPE)
     suri = 'http://{}:{}/'.format(service_uri(), API_PORT)
-    log.error('Self-registering as seed with URI {}...'.format(suri))
+    log.info('Self-registering as seed with URI {}...'.format(suri))
     response = requests.post(urljoin(AGORA_URL, 'seeds'),
                              data=json.dumps(
                                  {'type': prefixed_service_type, 'uri': suri}),
