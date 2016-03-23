@@ -13,7 +13,7 @@
   limitations under the License.
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=#
 """
-
+import json
 import logging
 import sys
 
@@ -27,6 +27,9 @@ __author__ = 'Fernando Serena'
 URI_PREFIX = os.environ.get('URI_PREFIX', '')
 SERVICE_TYPE = URIRef(os.environ.get('SERVICE_TYPE_URI', ''))
 CONTAINMENT_LINK = URIRef(os.environ.get('CONTAINMENT_LINK_URI', ''))
+
+sl_dict = json.loads(os.environ.get('SERVICE_LINKS', '{}'))
+SERVICE_LINKS = {URIRef(p): sl_dict[p] for p in sl_dict.keys()}
 
 log = logging.getLogger('rdf2rest.api')
 
@@ -97,6 +100,11 @@ def get_resource(rid):
             if list(service_graph.objects(o, RDF.type)):
                 rid = unicode(o).replace(URI_PREFIX, "")
                 o = URIRef(url_for('get_resource', rid=rid, _external=True))
+
+        if p in SERVICE_LINKS:
+            rid = unicode(o).replace(URI_PREFIX, "")
+            o = URIRef('{}{}'.format(SERVICE_LINKS[p], rid))
+
         g.add((me, p, o))
     response = make_response(g.serialize(format='turtle'))
     response.headers['Content-Type'] = 'text/turtle'

@@ -112,7 +112,7 @@ def service_uri():
 
 
 if __name__ == '__main__':
-    print '-           RDF2REST v0.0.2             -'
+    print '-           RDF2REST v0.0.3             -'
     print '- by Fernando Serena [fserena @ GitHub] -\n'
     service_graph.open(PARTITION_GRAPH_STORE, create=True)
 
