@@ -17,14 +17,14 @@
 
 import json
 import logging
-import netifaces as ni
 import shutil
-import sys
 from threading import Thread
 from urlparse import urljoin
 
+import netifaces as ni
 import os
 import requests as requests
+import sys
 from rdflib import ConjunctiveGraph, URIRef
 
 __author__ = 'Fernando Serena'
@@ -43,7 +43,6 @@ from rdf2rest.api import service_graph, NAMESPACES, app, SERVICE_TYPE
 from rdf2rest.dataset import create_link_partition, create_type_partition, load_dataset, PARTITION
 
 log = logging.getLogger('rdf2rest.r2r')
-
 
 # Load environment variables
 try:
@@ -79,12 +78,13 @@ if CREATE_PARTITION and not TYPE_PARTITION_URI and not LINK_PARTITION_URI:
 
 def batch_create():
     if TYPE_PARTITION_URI:
-        print 'A partition of {} {} resources is about to be created...\n'.format(PARTITION_LIMIT, TYPE_PARTITION_URI)
+        log.info(
+            'A partition of {} {} resources is about to be created...\n'.format(PARTITION_LIMIT, TYPE_PARTITION_URI))
         create_type_partition(source_graph, service_graph, TYPE_PARTITION_URI, limit=PARTITION_LIMIT,
                               offset=PARTITION_OFFSET, file_name=PARTITION_FILE, ignore=IGNORE_LINKS)
     elif LINK_PARTITION_URI:
-        print 'A partition of {} resources linked by {} is about to be created...\n'.format(PARTITION_LIMIT,
-                                                                                            LINK_PARTITION_URI)
+        log.info('A partition of {} resources linked by {} is about to be created...\n'.format(PARTITION_LIMIT,
+                                                                                               LINK_PARTITION_URI))
         create_link_partition(source_graph, service_graph, LINK_PARTITION_URI, limit=PARTITION_LIMIT,
                               offset=PARTITION_OFFSET, file_name=PARTITION_FILE, ignore=IGNORE_LINKS)
 
@@ -107,87 +107,73 @@ def service_uri():
 
 
 if __name__ == '__main__':
-    print '-           RDF2REST v0.0.1             -'
+    print '-           RDF2REST v0.0.2             -'
     print '- by Fernando Serena [fserena @ GitHub] -\n'
     service_graph.open(PARTITION_GRAPH_STORE, create=True)
 
     AGORA_URL = 'http://{}:{}'.format(AGORA_HOST, AGORA_PORT)
 
-    print 'Getting known vocabularies from Agora...',
+    log.info('Getting known vocabularies from Agora...')
     try:
         known_vocabs = requests.get(urljoin(AGORA_URL, 'vocabs')).json()
     except Exception, e:
         log.error(e.message)
         sys.exit(-1)
-    print 'Done.'
 
     # POST/PUT bank vocabulary
     with open(SERVICE_VOCABULARY_URL) as f:
         ttl = f.read()
         if SERVICE_VOCABULARY_ID not in known_vocabs:
-            print "'{}' vocabulary is not present in the Agora, teaching...".format(SERVICE_VOCABULARY_ID),
+            log.info("'{}' vocabulary is not present in the Agora, teaching...".format(SERVICE_VOCABULARY_ID))
             response = requests.post(urljoin(AGORA_URL, 'vocabs'), data=ttl, headers={'Content-Type': 'text/turtle'})
-            if response.status_code == 201:
-                print 'Done.'
-            else:
-                print 'Error.'
+            if response.status_code != 201:
+                log.error(response.content)
         else:
-            print "Updating '{}' vocabulary...".format(SERVICE_VOCABULARY_ID),
+            log.error("Updating '{}' vocabulary...".format(SERVICE_VOCABULARY_ID))
             response = requests.put(urljoin(AGORA_URL, 'vocabs/{}'.format(SERVICE_VOCABULARY_ID)), data=ttl,
                                     headers={'Content-Type': 'text/turtle'})
-            if response.status_code == 200:
-                print 'Done.'
-            else:
-                print 'Error.'
-
+            if response.status_code != 200:
+                log.error(response.content)
     prefixed_service_type = service_graph.namespace_manager.qname(SERVICE_TYPE)
     suri = 'http://{}:{}/'.format(service_uri(), API_PORT)
-    print 'Self-registering as seed with URI {}...'.format(suri),
+    log.error('Self-registering as seed with URI {}...'.format(suri))
     response = requests.post(urljoin(AGORA_URL, 'seeds'),
                              data=json.dumps(
                                  {'type': prefixed_service_type, 'uri': suri}),
                              headers={'Content-Type': 'application/json'})
-    if response.status_code == 201 or response.status_code == 409:
-        print 'Done.'
-    else:
-        print 'Error: {}.'.format(response.status_code)
+    if response.status_code != 201 and response.status_code != 409:
+        log.error(response.content)
 
     source_graph = ConjunctiveGraph('Sleepycat')
 
     if LOAD_SOURCE:
-        print 'Initializing source graph...',
+        log.info('Initializing source graph...')
         if os.path.exists(SOURCE_GRAPH_STORE):
             shutil.rmtree(SOURCE_GRAPH_STORE)
-        print 'Done.'
-        print 'Loading source graph...',
+        log.info('Loading source graph...')
         load_dataset(source_graph, SOURCE_GRAPH_STORE, SOURCE_FILE, blocking=True)
-        print 'Done.'
     else:
-        print 'Opening source graph...',
+        log.info('Opening source graph...')
         source_graph.open(SOURCE_GRAPH_STORE, create=True)
-        print 'Done.'
 
-    if CREATE_PARTITION:
-        print 'Preparing to create a dataset partition...'
-
-        print 'Updating source graph namespaces...',
+    if CREATE_PARTITION or not os.path.exists(PARTITION_GRAPH_STORE):
+        log.info('Preparing to create a dataset partition...')
+        log.info('Updating source graph namespaces...')
         for prefix in NAMESPACES:
             source_graph.bind(prefix, NAMESPACES[prefix])
-        print 'Done.'
 
-        print 'Initializing partition graph...',
+        log.info('Initializing partition graph...')
         if os.path.exists(PARTITION_GRAPH_STORE):
             shutil.rmtree(PARTITION_GRAPH_STORE)
         service_graph.open(PARTITION_GRAPH_STORE, create=True)
-        print 'Done.'
         batch_thread = Thread(target=batch_create)
         batch_thread.daemon = True
         batch_thread.start()
 
     else:
         if LOAD_PARTITION or not list(service_graph.triples((None, None, PARTITION.Root))):
-            print "Starting update of partition dataset from file {}...".format(PARTITION_FILE)
+            log.info("Starting update of partition dataset from file {}...".format(PARTITION_FILE))
             load_dataset(service_graph, PARTITION_GRAPH_STORE, PARTITION_FILE)
 
-    print '\nStarting REST API...'
+    log.info('Starting REST API...')
     app.run(host='0.0.0.0', debug=True, port=API_PORT, use_reloader=False, threaded=True)

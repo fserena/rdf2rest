@@ -15,6 +15,7 @@
 """
 
 import json
+import logging
 from threading import Thread
 
 import os
@@ -28,6 +29,8 @@ ns_dict = json.loads(os.environ.get('NAMESPACES', '{}'))
 NAMESPACES = {k: Namespace(ns_dict[k]) for k in ns_dict.keys()}
 
 __author__ = 'Fernando Serena'
+
+log = logging.getLogger('rdf2rest.dataset')
 
 
 def create_partition(source_graph, dest_graph, query, limit=None, offset=0, filename=None, ignore=None):
@@ -72,20 +75,19 @@ def create_partition(source_graph, dest_graph, query, limit=None, offset=0, file
         dest_graph.add((root, RDF.type, PARTITION.Root))
         [dest_graph.add(t) for t in source_graph.triples((root, RDF.type, None))]
     for root in roots:
-        print 'Exploring {}...'.format(root.n3()),
+        log.info('Exploring {}...'.format(root.n3()))
         linked_resources = explore_linked_resource(root)
         partition_size += linked_resources
-        print ' {} more resources linked'.format(linked_resources)
+        log.info('{} more resources linked'.format(linked_resources))
 
     if filename is None:
         actual_filename += '.ttl'
 
-    print 'The partition was fully created.'
-    print ' - Total resources: {}'.format(partition_size)
-    print 'Serializing partition graph to {}...'.format(actual_filename),
+    log.info("""The partition was fully created.\n
+                    - Total resources: {}""".format(partition_size))
+    log.info('Serializing partition graph to {}...'.format(actual_filename))
     with open(actual_filename, 'w') as f:
         f.write(dest_graph.serialize(format='turtle'))
-    print 'Done.'
 
     return actual_filename
 
@@ -121,10 +123,9 @@ def get_size(start_path):
 def load_dataset(g, path, filename, blocking=False):
     def load_ttl():
         with open(filename) as db:
-            print '\nParsing file {}...'.format(filename),
+            log.info('\nParsing file {}...'.format(filename))
             g.parse(file=db, format='turtle')
-            print 'Done.'
-        print "Dataset loaded from {} to '{}' path.".format(filename, path)
+        log.info("Dataset loaded from {} to '{}' path.".format(filename, path))
         status['loading'] = False
 
     def show_condition():
@@ -154,7 +155,7 @@ def load_dataset(g, path, filename, blocking=False):
 
         while True:
             if show_condition():
-                print "'{}' store size: {}".format(path, sizeof_fmt(float(status['last_size'])))
+                log.info("'{}' store size: {}".format(path, sizeof_fmt(float(status['last_size']))))
             else:
                 break
             time.sleep(5)
